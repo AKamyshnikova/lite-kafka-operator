@@ -1,0 +1,7 @@
+apiVersion: litekafka.operator.svimba.cz/v1alpha1
+kind: KafkaCluster
+metadata:
+  name: example-kafkacluster
+spec:
+  # Add fields here
+  size: 3
