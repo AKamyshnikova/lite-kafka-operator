@@ -1,4 +1,4 @@
-module github.com/Svimba/simple-kafka-operator
+module github.com/Svimba/lite-kafka-operator
 
 require (
 	github.com/go-logr/logr v0.1.0

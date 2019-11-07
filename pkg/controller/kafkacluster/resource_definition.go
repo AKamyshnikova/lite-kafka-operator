@@ -1,7 +1,7 @@
 package kafkacluster
 
 import (
-	litekafkav1alpha1 "github.com/Svimba/simple-kafka-operator/pkg/apis/litekafka/v1alpha1"
+	litekafkav1alpha1 "github.com/Svimba/lite-kafka-operator/pkg/apis/litekafka/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
@@ -9,9 +9,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) (*appsv1.StatefulSet, error) {
+func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.StatefulSet {
 	metaData := metav1.ObjectMeta{
-		Name: kafka.Name + "-kafka-cluster",
+		Namespace: kafka.Namespace,
+		Name:      kafka.Name + "-kafka-cluster",
 		Labels: map[string]string{
 			"app.kubernetes.io/component": "kafka-broker",
 			"app.kubernetes.io/name":      "kafka",
@@ -43,7 +44,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) (*appsv1.Statefu
 	readinessProbe := &corev1.Probe{
 		Handler: corev1.Handler{
 			TCPSocket: &corev1.TCPSocketAction{
-				Port: intstr.IntOrString{StrVal: "kafka"},
+				Port: intstr.IntOrString{StrVal: "kafka", IntVal: 9092},
 			},
 		},
 		InitialDelaySeconds: 30,
@@ -102,7 +103,9 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) (*appsv1.Statefu
 		},
 		{
 			Name:  "KAFKA_ZOOKEEPER_CONNECT",
-			Value: kafka.Name + "-zookeeper:2181",
+			Value: "my-kafka-zookeeper:2181",
+			// Value: kafka.Name + "-zookeeper:2181",
+
 		},
 		{
 			Name:  "KAFKA_LOG_DIRS",
@@ -150,10 +153,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) (*appsv1.Statefu
 							Command: []string{
 								`sh`,
 								`-exc`,
-								` | unset KAFKA_PORT && \
-								export KAFKA_BROKER_ID=${POD_NAME##*-} && \
-								export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:9092 && \
-								exec /etc/confluent/docker/run`,
+								`unset KAFKA_PORT && export KAFKA_BROKER_ID=${POD_NAME##*-} && export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:9092 && exec /etc/confluent/docker/run`,
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -167,5 +167,72 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) (*appsv1.Statefu
 			},
 		},
 	}
-	return &sts, nil
+	return &sts
+}
+
+func getKafkaServiceHeadless(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Service {
+	metaData := metav1.ObjectMeta{
+		Namespace: kafka.Namespace,
+		Name:      kafka.Name + "-kafka-headless",
+		Labels: map[string]string{
+			"app.kubernetes.io/component": "kafka-broker",
+			"app.kubernetes.io/name":      "kafka",
+			"app.kubernetes.io/instance":  kafka.Name,
+		},
+		Annotations: map[string]string{
+			"service.alpha.kubernetes.io/tolerate-unready-endpoints": "true",
+		},
+	}
+
+	service := corev1.Service{
+		ObjectMeta: metaData,
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Name: "broker",
+					Port: 9092,
+				},
+			},
+			ClusterIP: "None",
+			Selector: map[string]string{
+				"app.kubernetes.io/component": "kafka-broker",
+				"app.kubernetes.io/name":      "kafka",
+				"app.kubernetes.io/instance":  kafka.Name,
+			},
+		},
+	}
+
+	return &service
+}
+
+func getKafkaService(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Service {
+	metaData := metav1.ObjectMeta{
+		Namespace: kafka.Namespace,
+		Name:      kafka.Name + "-kafka",
+		Labels: map[string]string{
+			"app.kubernetes.io/component": "kafka-broker",
+			"app.kubernetes.io/name":      "kafka",
+			"app.kubernetes.io/instance":  kafka.Name,
+		},
+	}
+
+	service := corev1.Service{
+		ObjectMeta: metaData,
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "broker",
+					Port:       9092,
+					TargetPort: intstr.IntOrString{StrVal: "kafka", IntVal: 9092},
+				},
+			},
+			Selector: map[string]string{
+				"app.kubernetes.io/component": "kafka-broker",
+				"app.kubernetes.io/name":      "kafka",
+				"app.kubernetes.io/instance":  kafka.Name,
+			},
+		},
+	}
+
+	return &service
 }

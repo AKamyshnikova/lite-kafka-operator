@@ -3,11 +3,10 @@ package kafkacluster
 import (
 	"context"
 
-	litekafkav1alpha1 "./pkg/apis/litekafka/v1alpha1"
+	litekafkav1alpha1 "github.com/Svimba/lite-kafka-operator/pkg/apis/litekafka/v1alpha1"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -88,8 +87,8 @@ func (r *ReconcileKafkaCluster) Reconcile(request reconcile.Request) (reconcile.
 	r.rlog.Info("Reconciling KafkaCluster")
 
 	// Fetch the KafkaCluster instance
-	instance := &litekafkav1alpha1.KafkaCluster{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	r.kafka = &litekafkav1alpha1.KafkaCluster{}
+	err := r.client.Get(context.TODO(), request.NamespacedName, r.kafka)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -101,33 +100,18 @@ func (r *ReconcileKafkaCluster) Reconcile(request reconcile.Request) (reconcile.
 		return reconcile.Result{}, err
 	}
 
+	// fmt.Println("START KAFKA CLUSTER")
+	// fmt.Printf("KAFKA OBJECT %v\n", r.kafka)
+
 	requeue, err := r.handleSTSKafka()
 	if err != nil {
 		return reconcile.Result{Requeue: requeue}, err
 	}
 
-	return reconcile.Result{}, nil
-}
+	requeue, err = r.handleSVCsKafka()
+	if err != nil {
+		return reconcile.Result{Requeue: requeue}, err
+	}
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *litekafkav1alpha1.KafkaCluster) *corev1.Pod {
-	labels := map[string]string{
-		"app": cr.Name,
-	}
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
-		},
-	}
+	return reconcile.Result{}, nil
 }

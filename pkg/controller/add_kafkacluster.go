@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/Svimba/simple-kafka-operator/pkg/controller/kafkacluster"
+	"github.com/Svimba/lite-kafka-operator/pkg/controller/kafkacluster"
 )
 
 func init() {

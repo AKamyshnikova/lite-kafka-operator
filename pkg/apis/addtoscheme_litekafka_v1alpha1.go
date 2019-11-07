@@ -1,7 +1,7 @@
 package apis
 
 import (
-	"github.com/Svimba/simple-kafka-operator/pkg/apis/litekafka/v1alpha1"
+	"github.com/Svimba/lite-kafka-operator/pkg/apis/litekafka/v1alpha1"
 )
 
 func init() {
