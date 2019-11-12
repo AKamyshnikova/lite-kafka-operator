@@ -1,6 +1,9 @@
 package kafkacluster
 
 import (
+	"fmt"
+	"strconv"
+
 	litekafkav1alpha1 "github.com/Svimba/lite-kafka-operator/pkg/apis/litekafka/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -12,7 +15,7 @@ import (
 func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.StatefulSet {
 	metaData := metav1.ObjectMeta{
 		Namespace: kafka.Namespace,
-		Name:      kafka.Name + "-kafka-cluster",
+		Name:      kafka.Name + "-kafka",
 		Labels: map[string]string{
 			"app.kubernetes.io/component": "kafka-broker",
 			"app.kubernetes.io/name":      "kafka",
@@ -44,7 +47,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 	readinessProbe := &corev1.Probe{
 		Handler: corev1.Handler{
 			TCPSocket: &corev1.TCPSocketAction{
-				Port: intstr.IntOrString{StrVal: "kafka", IntVal: 9092},
+				Port: intstr.IntOrString{StrVal: kafka.Spec.ContainerPort.Name, IntVal: kafka.Spec.ContainerPort.Port},
 			},
 		},
 		InitialDelaySeconds: 30,
@@ -62,7 +65,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 				AccessModes: []corev1.PersistentVolumeAccessMode{"ReadWriteOnce"},
 				Resources: corev1.ResourceRequirements{
 					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse("1Gi"),
+						corev1.ResourceStorage: resource.MustParse(kafka.Spec.Storage),
 					},
 				},
 			},
@@ -99,13 +102,11 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 		},
 		{
 			Name:  "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR",
-			Value: "3",
+			Value: strconv.FormatUint(uint64(kafka.Spec.Options.TopicReplicationFactor), 10),
 		},
 		{
 			Name:  "KAFKA_ZOOKEEPER_CONNECT",
-			Value: "my-kafka-zookeeper:2181",
-			// Value: kafka.Name + "-zookeeper:2181",
-
+			Value: fmt.Sprintf("%s:%d", kafka.Spec.Zookeeper.Host, kafka.Spec.Zookeeper.Port.Port),
 		},
 		{
 			Name:  "KAFKA_LOG_DIRS",
@@ -117,7 +118,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 		},
 		{
 			Name:  "KAFKA_JMX_PORT",
-			Value: "5555",
+			Value: strconv.FormatUint(uint64(kafka.Spec.Options.JXMPort), 10),
 		},
 	}
 
@@ -139,21 +140,21 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 					Containers: []corev1.Container{
 						{
 							Name:            "kafka-broker",
-							Image:           "confluentinc/cp-kafka:5.0.1",
+							Image:           kafka.Spec.Image,
 							ImagePullPolicy: "IfNotPresent",
 							LivenessProbe:   livenessProbe,
 							ReadinessProbe:  readinessProbe,
 							Ports: []corev1.ContainerPort{
 								{
-									Name:          "kafka",
-									ContainerPort: 9092,
+									Name:          kafka.Spec.ContainerPort.Name,
+									ContainerPort: kafka.Spec.ContainerPort.Port,
 								},
 							},
 							Env: envVars,
 							Command: []string{
 								`sh`,
 								`-exc`,
-								`unset KAFKA_PORT && export KAFKA_BROKER_ID=${POD_NAME##*-} && export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:9092 && exec /etc/confluent/docker/run`,
+								`unset KAFKA_PORT && export KAFKA_BROKER_ID=${POD_NAME##*-} && export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:` + fmt.Sprintf("%d", kafka.Spec.ContainerPort.Port) + ` && exec /etc/confluent/docker/run`,
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -189,8 +190,8 @@ func getKafkaServiceHeadless(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Serv
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{
 				{
-					Name: "broker",
-					Port: 9092,
+					Name: kafka.Spec.ServicePort.Name,
+					Port: kafka.Spec.ServicePort.Port,
 				},
 			},
 			ClusterIP: "None",
@@ -221,9 +222,9 @@ func getKafkaService(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Service {
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{
 				{
-					Name:       "broker",
-					Port:       9092,
-					TargetPort: intstr.IntOrString{StrVal: "kafka", IntVal: 9092},
+					Name:       kafka.Spec.ServicePort.Name,
+					Port:       kafka.Spec.ServicePort.Port,
+					TargetPort: intstr.IntOrString{StrVal: kafka.Spec.ContainerPort.Name, IntVal: kafka.Spec.ContainerPort.Port},
 				},
 			},
 			Selector: map[string]string{

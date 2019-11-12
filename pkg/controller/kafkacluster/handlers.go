@@ -28,11 +28,22 @@ func (r *ReconcileKafkaCluster) handleSTSKafka() (bool, error) {
 		if err != nil {
 			return false, err
 		}
-
 		// Pod created successfully - don't requeue
 		return false, nil
 	} else if err != nil {
 		return false, err
+	}
+
+	r.rlog.Info("Check replicas of StatefulSet", "Namespace", obj.Namespace, "Name", obj.Name)
+	// Check replicas
+	if *found.Spec.Replicas != *obj.Spec.Replicas {
+		found.Spec.Replicas = obj.Spec.Replicas
+		err = r.client.Update(context.TODO(), found)
+		if err != nil {
+			r.rlog.Error(err, "Cannot update number of replicas for StatefulSet")
+			return true, err
+		}
+
 	}
 
 	// Pod already exists - don't requeue

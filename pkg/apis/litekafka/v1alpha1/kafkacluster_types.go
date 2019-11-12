@@ -4,13 +4,37 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// Port defines the desired state of Port
+// +k8s:openapi-gen=true
+type Port struct {
+	Name string `json:"name"`
+	Port int32  `json:"port"`
+}
+
+// ZookeeperSpec defines the desired state of ZookeeperSpec
+// +k8s:openapi-gen=true
+type ZookeeperSpec struct {
+	Host string `json:"host"`
+	Port Port   `json:"port"`
+}
+
+// KafkaOptions defines the desired state of KafkaOptions
+// +k8s:openapi-gen=true
+type KafkaOptions struct {
+	TopicReplicationFactor uint `json:"topicReplicationFactor"`
+	JXMPort                uint `json:"jxmport"`
+}
 
 // KafkaClusterSpec defines the desired state of KafkaCluster
 // +k8s:openapi-gen=true
 type KafkaClusterSpec struct {
-	Replicas int32 `json:"replicas"`
+	Replicas      int32         `json:"replicas"`
+	ContainerPort Port          `json:"containerPort"`
+	ServicePort   Port          `json:"servicePort"`
+	Storage       string        `json:"storage"`
+	Options       KafkaOptions  `json:"options"`
+	Zookeeper     ZookeeperSpec `json:"zookeeper"`
+	Image         string        `json:"image"`
 }
 
 // KafkaClusterStatus defines the observed state of KafkaCluster
