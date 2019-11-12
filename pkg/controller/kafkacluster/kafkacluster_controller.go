@@ -100,9 +100,10 @@ func (r *ReconcileKafkaCluster) Reconcile(request reconcile.Request) (reconcile.
 		return reconcile.Result{}, err
 	}
 
-	// fmt.Println("START KAFKA CLUSTER")
-	// fmt.Printf("KAFKA OBJECT %v\n", r.kafka)
+	// set default values for undefined specs
+	r.kafka.SetDefaults()
 
+	// Start resourec handling
 	requeue, err := r.handleSTSKafka()
 	if err != nil {
 		return reconcile.Result{Requeue: requeue}, err
