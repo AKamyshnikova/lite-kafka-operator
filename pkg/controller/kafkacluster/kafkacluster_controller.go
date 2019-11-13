@@ -77,8 +77,6 @@ type ReconcileKafkaCluster struct {
 
 // Reconcile reads that state of the cluster for a KafkaCluster object and makes changes based on the state read
 // and what is in the KafkaCluster.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
-// a Pod as an example
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
@@ -102,6 +100,20 @@ func (r *ReconcileKafkaCluster) Reconcile(request reconcile.Request) (reconcile.
 
 	// set default values for undefined specs
 	r.kafka.SetDefaults()
+
+	// Check zookeeper service is ready
+	if *r.kafka.Spec.ZookeeperCheck {
+		ready, err := CheckZookeeperIsReady(r.kafka.Spec.Zookeeper.Host, r.kafka.Spec.Zookeeper.Port.Port)
+		if err != nil {
+			r.rlog.Error(err, "Error during testing Zookeeper service")
+			return reconcile.Result{Requeue: false}, err
+		}
+		if !ready {
+			r.rlog.Info("Zookeeper service is not ready, reconcile")
+			return reconcile.Result{Requeue: true}, nil
+		}
+		r.rlog.Info("Zookeeper service is ready, continue to deploy resources")
+	}
 
 	// Start resourec handling
 	requeue, err := r.handleSTSKafka()

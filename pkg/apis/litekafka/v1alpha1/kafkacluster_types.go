@@ -28,13 +28,14 @@ type KafkaOptions struct {
 // KafkaClusterSpec defines the desired state of KafkaCluster
 // +k8s:openapi-gen=true
 type KafkaClusterSpec struct {
-	Replicas      int32          `json:"replicas"`
-	ContainerPort *Port          `json:"containerPort"`
-	ServicePort   *Port          `json:"servicePort"`
-	Storage       string         `json:"storage"`
-	Options       *KafkaOptions  `json:"options"`
-	Zookeeper     *ZookeeperSpec `json:"zookeeper"`
-	Image         string         `json:"image"`
+	Replicas       int32          `json:"replicas"`
+	ContainerPort  *Port          `json:"containerPort"`
+	ServicePort    *Port          `json:"servicePort"`
+	Storage        string         `json:"storage"`
+	Options        *KafkaOptions  `json:"options"`
+	Zookeeper      *ZookeeperSpec `json:"zookeeper"`
+	ZookeeperCheck *bool          `json:"zookeeperCheck"`
+	Image          string         `json:"image"`
 }
 
 // KafkaClusterStatus defines the observed state of KafkaCluster
@@ -87,6 +88,10 @@ func (kc *KafkaCluster) SetDefaults() {
 	}
 	if kc.Spec.ServicePort == nil {
 		kc.Spec.ServicePort = &Port{Name: "broker", Port: 9092}
+	}
+	if kc.Spec.ZookeeperCheck == nil {
+		enable := true
+		kc.Spec.ZookeeperCheck = &enable
 	}
 	if kc.Spec.Zookeeper == nil {
 		kc.Spec.Zookeeper = &ZookeeperSpec{

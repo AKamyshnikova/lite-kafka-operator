@@ -92,6 +92,11 @@ func (in *KafkaClusterSpec) DeepCopyInto(out *KafkaClusterSpec) {
 		*out = new(ZookeeperSpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.ZookeeperCheck != nil {
+		in, out := &in.ZookeeperCheck, &out.ZookeeperCheck
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
