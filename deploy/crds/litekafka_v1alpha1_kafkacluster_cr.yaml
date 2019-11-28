@@ -1,4 +1,4 @@
-apiVersion: litekafka.operator.svimba.cz/v1alpha1
+apiVersion: litekafka.operator.mirantis.com/v1alpha1
 kind: KafkaCluster
 metadata:
   name: example-kafkacluster

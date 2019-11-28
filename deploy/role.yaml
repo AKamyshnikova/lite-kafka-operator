@@ -54,7 +54,7 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - litekafka.operator.svimba.cz
+  - litekafka.operator.mirantis.com
   resources:
   - '*'
   verbs:
