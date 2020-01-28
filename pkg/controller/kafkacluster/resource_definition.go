@@ -68,6 +68,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 						corev1.ResourceStorage: resource.MustParse(kafka.Spec.Storage),
 					},
 				},
+				StorageClassName: &kafka.Spec.DataStorageClass,
 			},
 		},
 	}

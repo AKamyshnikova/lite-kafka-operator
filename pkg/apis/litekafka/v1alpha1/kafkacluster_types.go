@@ -36,6 +36,7 @@ type KafkaClusterSpec struct {
 	Zookeeper      *ZookeeperSpec `json:"zookeeper"`
 	ZookeeperCheck *bool          `json:"zookeeperCheck"`
 	Image          string         `json:"image"`
+	DataStorageClass string       `json:"dataStorageClass,omitempty"`
 }
 
 // KafkaClusterStatus defines the observed state of KafkaCluster
