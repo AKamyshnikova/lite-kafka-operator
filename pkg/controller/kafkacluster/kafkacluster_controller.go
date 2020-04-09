@@ -5,6 +5,7 @@ import (
 
 	litekafkav1alpha1 "github.com/Svimba/lite-kafka-operator/pkg/apis/litekafka/v1alpha1"
 	"github.com/go-logr/logr"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,11 +19,6 @@ import (
 )
 
 var log = logf.Log.WithName("controller_kafkacluster")
-
-/**
-* USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
-* business logic.  Delete these comments after modifying this file.*
- */
 
 // Add creates a new KafkaCluster Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -49,9 +45,26 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// TODO(user): Modify this to be the types you create that are owned by the primary resource
 	// Watch for changes to secondary resource Pods and requeue the owner KafkaCluster
 	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &litekafkav1alpha1.KafkaCluster{},
+	})
+	if err != nil {
+		return err
+	}
+
+	// Watch for changes to secondary resource Service and requeue the owner KafkaCluster
+	err = c.Watch(&source.Kind{Type: &corev1.Service{}}, &handler.EnqueueRequestForOwner{
+		IsController: true,
+		OwnerType:    &litekafkav1alpha1.KafkaCluster{},
+	})
+	if err != nil {
+		return err
+	}
+
+	// Watch for changes to secondary resource StateulSet and requeue the owner KafkaCluster
+	err = c.Watch(&source.Kind{Type: &appsv1.StatefulSet{}}, &handler.EnqueueRequestForOwner{
 		IsController: true,
 		OwnerType:    &litekafkav1alpha1.KafkaCluster{},
 	})
@@ -126,5 +139,9 @@ func (r *ReconcileKafkaCluster) Reconcile(request reconcile.Request) (reconcile.
 		return reconcile.Result{Requeue: requeue}, err
 	}
 
+	requeue, err = r.UpdateClusterStatus()
+	if err != nil {
+		return reconcile.Result{Requeue: requeue}, err
+	}
 	return reconcile.Result{}, nil
 }

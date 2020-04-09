@@ -18,7 +18,7 @@ func CheckZookeeperIsReady(zookeeperHost string, zookeeperPort int32) (bool, err
 
 	fmt.Fprintf(conn, "ruok\n")
 	// listen for reply
-	data := make([]byte, 4)
+	data := []byte{}
 	_, err = bufio.NewReader(conn).Read(data)
 	if err != nil {
 		return false, err

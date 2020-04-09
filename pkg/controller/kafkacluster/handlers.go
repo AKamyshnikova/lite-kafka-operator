@@ -2,6 +2,7 @@ package kafkacluster
 
 import (
 	"context"
+	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -98,6 +99,32 @@ func (r *ReconcileKafkaCluster) handleSVCsKafka() (bool, error) {
 		return false, err
 	}
 	r.rlog.Info("Skip reconcile: Service already exists", "Namespace", found.Namespace, "Name", found.Name)
+
+	return false, nil
+}
+
+func (r *ReconcileKafkaCluster) UpdateClusterStatus() (bool, error) {
+	// Define a new object
+	obj := getKafkaStatefulSet(r.kafka)
+
+	sts := &appsv1.StatefulSet{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}, sts)
+	if err != nil {
+		return false, err
+	}
+
+	if *sts.Spec.Replicas == sts.Status.ReadyReplicas {
+		r.kafka.Status.ClusterStatus = "Done"
+	} else {
+		r.kafka.Status.ClusterStatus = fmt.Sprintf("Starting,  %d unready members", (*sts.Spec.Replicas - sts.Status.ReadyReplicas))
+	}
+	r.kafka.Status.ReadyMembers = sts.Status.ReadyReplicas
+
+	// Update CR status
+	err = r.client.Status().Update(context.TODO(), r.kafka)
+	if err != nil {
+		return true, err
+	}
 
 	return false, nil
 }

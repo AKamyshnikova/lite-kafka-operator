@@ -42,9 +42,8 @@ type KafkaClusterSpec struct {
 // KafkaClusterStatus defines the observed state of KafkaCluster
 // +k8s:openapi-gen=true
 type KafkaClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
-	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
+	ClusterStatus string `json:"clusterStatus"`
+	ReadyMembers  int32  `json:"readyMembers"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
