@@ -5,7 +5,7 @@
 
 if ! whoami &>/dev/null; then
   if [ -w /etc/passwd ]; then
-    echo "${USER_NAME:-lite-kafka-operator}:x:$(id -u):$(id -g):${USER_NAME:-lite-kafka-operator} user:${HOME}:/sbin/nologin" >> /etc/passwd
+    echo "${USER_NAME:-kafka-k8s-operator}:x:$(id -u):$(id -g):${USER_NAME:-kafka-k8s-operator} user:${HOME}:/sbin/nologin" >> /etc/passwd
   fi
 fi
 
