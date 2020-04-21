@@ -1,7 +1,6 @@
 package kafkacluster
 
 import (
-	"bufio"
 	"fmt"
 	"net"
 )
@@ -15,16 +14,18 @@ func CheckZookeeperIsReady(zookeeperHost string, zookeeperPort int32) (bool, err
 	if err != nil {
 		return false, err
 	}
+	defer conn.Close()
 
 	fmt.Fprintf(conn, "ruok\n")
+
 	// listen for reply
-	data := []byte{}
-	_, err = bufio.NewReader(conn).Read(data)
+	var buf = make([]byte, 10)
+	n, err := conn.Read(buf)
 	if err != nil {
 		return false, err
 	}
 
-	if string(data) == "imok" {
+	if string(buf[:n]) == "imok" {
 		return true, nil
 	}
 
