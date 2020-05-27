@@ -13,21 +13,14 @@ import (
 )
 
 func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.StatefulSet {
+	labels := kafka.GetDefaultLabels()
 	metaData := metav1.ObjectMeta{
-		Namespace: kafka.Namespace,
-		Name:      kafka.Name + "-kafka",
-		Labels: map[string]string{
-			"app.kubernetes.io/component": "kafka-broker",
-			"app.kubernetes.io/name":      "kafka",
-			"app.kubernetes.io/instance":  kafka.Name,
-		},
+		Namespace: kafka.GetNamespace(),
+		Name:      kafka.GetName(),
+		Labels:    labels,
 	}
 	selectors := &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"app.kubernetes.io/component": "kafka-broker",
-			"app.kubernetes.io/name":      "kafka",
-			"app.kubernetes.io/instance":  kafka.Name,
-		},
+		MatchLabels: labels,
 	}
 	replicas := kafka.Spec.Replicas
 	terminationGracePeriodSeconds := int64(60)
@@ -165,6 +158,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 							},
 						},
 					},
+					Affinity: kafka.Spec.Affinity,
 				},
 			},
 		},
@@ -176,11 +170,7 @@ func getKafkaServiceHeadless(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Serv
 	metaData := metav1.ObjectMeta{
 		Namespace: kafka.Namespace,
 		Name:      kafka.Name + "-kafka-headless",
-		Labels: map[string]string{
-			"app.kubernetes.io/component": "kafka-broker",
-			"app.kubernetes.io/name":      "kafka",
-			"app.kubernetes.io/instance":  kafka.Name,
-		},
+		Labels:    kafka.GetDefaultLabels(),
 		Annotations: map[string]string{
 			"service.alpha.kubernetes.io/tolerate-unready-endpoints": "true",
 		},
@@ -196,11 +186,7 @@ func getKafkaServiceHeadless(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Serv
 				},
 			},
 			ClusterIP: "None",
-			Selector: map[string]string{
-				"app.kubernetes.io/component": "kafka-broker",
-				"app.kubernetes.io/name":      "kafka",
-				"app.kubernetes.io/instance":  kafka.Name,
-			},
+			Selector:  kafka.GetDefaultLabels(),
 		},
 	}
 
@@ -211,11 +197,7 @@ func getKafkaService(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Service {
 	metaData := metav1.ObjectMeta{
 		Namespace: kafka.Namespace,
 		Name:      kafka.Name + "-kafka",
-		Labels: map[string]string{
-			"app.kubernetes.io/component": "kafka-broker",
-			"app.kubernetes.io/name":      "kafka",
-			"app.kubernetes.io/instance":  kafka.Name,
-		},
+		Labels:    kafka.GetDefaultLabels(),
 	}
 
 	service := corev1.Service{
@@ -228,11 +210,7 @@ func getKafkaService(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Service {
 					TargetPort: intstr.IntOrString{StrVal: kafka.Spec.ContainerPort.Name, IntVal: kafka.Spec.ContainerPort.Port},
 				},
 			},
-			Selector: map[string]string{
-				"app.kubernetes.io/component": "kafka-broker",
-				"app.kubernetes.io/name":      "kafka",
-				"app.kubernetes.io/instance":  kafka.Name,
-			},
+			Selector: kafka.GetDefaultLabels(),
 		},
 	}
 

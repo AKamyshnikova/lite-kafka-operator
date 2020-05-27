@@ -5,6 +5,7 @@
 package v1alpha1
 
 import (
+	v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -40,7 +41,7 @@ func (in *KafkaCluster) DeepCopyObject() runtime.Object {
 func (in *KafkaClusterList) DeepCopyInto(out *KafkaClusterList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]KafkaCluster, len(*in))
@@ -96,6 +97,11 @@ func (in *KafkaClusterSpec) DeepCopyInto(out *KafkaClusterSpec) {
 		in, out := &in.ZookeeperCheck, &out.ZookeeperCheck
 		*out = new(bool)
 		**out = **in
+	}
+	if in.Affinity != nil {
+		in, out := &in.Affinity, &out.Affinity
+		*out = new(v1.Affinity)
+		(*in).DeepCopyInto(*out)
 	}
 	return
 }

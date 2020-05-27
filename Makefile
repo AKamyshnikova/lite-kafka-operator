@@ -6,7 +6,10 @@ NAME?=kafka-k8s-operator
 VERSION?=$(shell hack/get_version.sh)
 OPERATOR_IMAGE=$(REPOSITORY)/$(REPOSITORY_PATH)/$(NAME)
 PUSHLATEST?=false
-GOPRIVATE=gerrit.mcp.mirantis.com/*
+export GOPRIVATE=gerrit.mcp.mirantis.com/*
+
+# Some other useful make file for interacting with kubernetes
+include kube.mk
 
 get-version: ##Get next possible version (see hack/get_version.sh)
 	@echo ${VERSION}

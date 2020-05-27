@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,15 +29,16 @@ type KafkaOptions struct {
 // KafkaClusterSpec defines the desired state of KafkaCluster
 // +k8s:openapi-gen=true
 type KafkaClusterSpec struct {
-	Replicas         int32          `json:"replicas"`
-	ContainerPort    *Port          `json:"containerPort"`
-	ServicePort      *Port          `json:"servicePort"`
-	Storage          string         `json:"storage"`
-	Options          *KafkaOptions  `json:"options"`
-	Zookeeper        *ZookeeperSpec `json:"zookeeper"`
-	ZookeeperCheck   *bool          `json:"zookeeperCheck"`
-	Image            string         `json:"image"`
-	DataStorageClass string         `json:"dataStorageClass,omitempty"`
+	Replicas         int32            `json:"replicas"`
+	ContainerPort    *Port            `json:"containerPort"`
+	ServicePort      *Port            `json:"servicePort"`
+	Storage          string           `json:"storage"`
+	Options          *KafkaOptions    `json:"options"`
+	Zookeeper        *ZookeeperSpec   `json:"zookeeper"`
+	ZookeeperCheck   *bool            `json:"zookeeperCheck"`
+	Image            string           `json:"image"`
+	DataStorageClass string           `json:"dataStorageClass,omitempty"`
+	Affinity         *corev1.Affinity `json:"affinity,omitempty"`
 }
 
 // KafkaClusterStatus defines the observed state of KafkaCluster
@@ -70,6 +72,14 @@ type KafkaClusterList struct {
 
 func init() {
 	SchemeBuilder.Register(&KafkaCluster{}, &KafkaClusterList{})
+}
+
+func (kc *KafkaCluster) GetDefaultLabels() map[string]string {
+	return map[string]string{
+		"app":       kc.GetName(),
+		"component": "kafka-broker",
+		"name":      "kafka",
+	}
 }
 
 // SetDefaults Set dfault values of KafkaClusterSpec
@@ -120,4 +130,27 @@ func (kc *KafkaCluster) SetDefaults() {
 		}
 	}
 
+	if kc.Spec.Affinity == nil {
+		kc.Spec.Affinity = &corev1.Affinity{
+			PodAntiAffinity: &corev1.PodAntiAffinity{
+				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
+					{
+						Weight: 20,
+						PodAffinityTerm: corev1.PodAffinityTerm{
+							TopologyKey: "kubernetes.io/hostname",
+							LabelSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "app",
+										Operator: metav1.LabelSelectorOpIn,
+										Values:   []string{kc.GetName()},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
 }
