@@ -121,7 +121,7 @@ func (r *ReconcileKafkaCluster) UpdateClusterStatus() (bool, error) {
 	r.kafka.Status.ReadyMembers = sts.Status.ReadyReplicas
 
 	// Update CR status
-	err = r.client.Status().Update(context.TODO(), r.kafka)
+	err = r.client.Update(context.TODO(), r.kafka)
 	if err != nil {
 		return true, err
 	}

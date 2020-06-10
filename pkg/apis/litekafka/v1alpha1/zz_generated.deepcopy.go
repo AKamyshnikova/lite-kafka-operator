@@ -103,6 +103,11 @@ func (in *KafkaClusterSpec) DeepCopyInto(out *KafkaClusterSpec) {
 		*out = new(v1.Affinity)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Resources != nil {
+		in, out := &in.Resources, &out.Resources
+		*out = new(v1.ResourceRequirements)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 

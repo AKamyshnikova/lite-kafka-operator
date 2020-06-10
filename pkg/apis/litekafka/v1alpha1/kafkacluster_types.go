@@ -29,16 +29,17 @@ type KafkaOptions struct {
 // KafkaClusterSpec defines the desired state of KafkaCluster
 // +k8s:openapi-gen=true
 type KafkaClusterSpec struct {
-	Replicas         int32            `json:"replicas"`
-	ContainerPort    *Port            `json:"containerPort"`
-	ServicePort      *Port            `json:"servicePort"`
-	Storage          string           `json:"storage"`
-	Options          *KafkaOptions    `json:"options"`
-	Zookeeper        *ZookeeperSpec   `json:"zookeeper"`
-	ZookeeperCheck   *bool            `json:"zookeeperCheck"`
-	Image            string           `json:"image"`
-	DataStorageClass string           `json:"dataStorageClass,omitempty"`
-	Affinity         *corev1.Affinity `json:"affinity,omitempty"`
+	Replicas         int32                        `json:"replicas"`
+	ContainerPort    *Port                        `json:"containerPort"`
+	ServicePort      *Port                        `json:"servicePort"`
+	Storage          string                       `json:"storage"`
+	Options          *KafkaOptions                `json:"options"`
+	Zookeeper        *ZookeeperSpec               `json:"zookeeper"`
+	ZookeeperCheck   *bool                        `json:"zookeeperCheck"`
+	Image            string                       `json:"image"`
+	DataStorageClass string                       `json:"dataStorageClass,omitempty"`
+	Affinity         *corev1.Affinity             `json:"affinity,omitempty"`
+	Resources        *corev1.ResourceRequirements `json:"resources,omitempty"`
 }
 
 // KafkaClusterStatus defines the observed state of KafkaCluster

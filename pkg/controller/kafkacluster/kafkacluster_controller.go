@@ -116,6 +116,7 @@ func (r *ReconcileKafkaCluster) Reconcile(request reconcile.Request) (reconcile.
 
 	// Check zookeeper service is ready
 	if *r.kafka.Spec.ZookeeperCheck {
+		r.rlog.Info("Waiting until Zookeeper service is ready")
 		ready, err := CheckZookeeperIsReady(r.kafka.Spec.Zookeeper.Host, r.kafka.Spec.Zookeeper.Port.Port)
 		if err != nil {
 			r.rlog.Error(err, "Error during testing Zookeeper service")

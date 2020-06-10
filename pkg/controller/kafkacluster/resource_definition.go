@@ -163,6 +163,10 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 			},
 		},
 	}
+
+	if kafka.Spec.Resources != nil {
+		sts.Spec.Template.Spec.Containers[0].Resources = *kafka.Spec.Resources
+	}
 	return &sts
 }
 
