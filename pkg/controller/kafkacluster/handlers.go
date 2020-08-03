@@ -7,7 +7,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -20,9 +22,16 @@ func (r *ReconcileKafkaCluster) handleSTSKafka() (bool, error) {
 		return false, err
 	}
 
+	// Check old version of kafka StatefulSet via labels. There was different name for StatefulSet
+	// then operator creates next STS which is in conflict with old one.
+	err := r.deleteOldKafkaStatefulSet("app.kubernetes.io/name=kafka,app.kubernetes.io/component=kafka-broker")
+	if err != nil {
+		return false, err
+	}
+
 	// Check if this Pod already exists
 	found := &appsv1.StatefulSet{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}, found)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
 		r.rlog.Info("Creating a new StatefulSet", "Namespace", obj.Namespace, "Name", obj.Name)
 		err = r.client.Create(context.TODO(), obj)
@@ -50,6 +59,44 @@ func (r *ReconcileKafkaCluster) handleSTSKafka() (bool, error) {
 	// Pod already exists - don't requeue
 	r.rlog.Info("Skip reconcile: StatefulSet already exists", "Namespace", found.Namespace, "Name", found.Name)
 	return false, nil
+}
+
+func (r *ReconcileKafkaCluster) deleteOldKafkaStatefulSet(labelString string) error {
+	stsList := &appsv1.StatefulSetList{}
+	labelSelector := labels.NewSelector()
+
+	req, err := labels.ParseToRequirements(labelString)
+	if err != nil && errors.IsNotFound(err) {
+		msg := fmt.Sprintf("Cannot parse label %v to requirement", labelString)
+		r.rlog.Error(err, msg)
+		return err
+	}
+
+	for _, r := range req {
+		labelSelector = labelSelector.Add(r)
+	}
+
+	listOptions := &client.ListOptions{}
+	listOptions.LabelSelector = labelSelector
+	listOptions.Namespace = r.kafka.GetNamespace()
+
+	err = r.client.List(context.TODO(), stsList, listOptions)
+	if err != nil && errors.IsNotFound(err) {
+		msg := fmt.Sprintf("Cannot get K8s stsList with labels %v", labelString)
+		r.rlog.Error(err, msg)
+		return err
+	}
+	for _, sts := range stsList.Items {
+		err = r.client.Delete(context.TODO(), sts.DeepCopyObject())
+		if err != nil && !errors.IsNotFound(err) {
+			r.rlog.Error(err, "Deleting ", sts.Name)
+			return err
+		} else if errors.IsNotFound(err) {
+			return nil
+		}
+		r.rlog.Info("Old version of inconsistent StatefulSet has been deleted", "StatefulSet", sts.Name)
+	}
+	return nil
 }
 
 func (r *ReconcileKafkaCluster) handleSVCsKafka() (bool, error) {
