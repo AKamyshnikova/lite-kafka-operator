@@ -3,6 +3,7 @@ package kafkacluster
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -44,16 +45,18 @@ func (r *ReconcileKafkaCluster) handleSTSKafka() (bool, error) {
 		return false, err
 	}
 
-	r.rlog.Info("Check replicas of StatefulSet", "Namespace", obj.Namespace, "Name", obj.Name)
-	// Check replicas
-	if *found.Spec.Replicas != *obj.Spec.Replicas {
-		found.Spec.Replicas = obj.Spec.Replicas
-		err = r.client.Update(context.TODO(), found)
+	r.rlog.Info("Check spec of StatefulSet", "Namespace", obj.Namespace, "Name", obj.Name)
+	if !reflect.DeepEqual(found.Spec.Template.Spec, obj.Spec.Template.Spec) {
+		r.rlog.Info("Difference between Current and Desired state has been found")
+
+		obj.ResourceVersion = found.GetResourceVersion()
+		err = r.client.Update(context.TODO(), obj)
 		if err != nil {
 			r.rlog.Error(err, "Cannot update number of replicas for StatefulSet")
 			return true, err
 		}
-
+	} else {
+		r.rlog.Info("StatefulSet looks updated")
 	}
 
 	// Pod already exists - don't requeue

@@ -35,7 +35,10 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 			},
 		},
 		InitialDelaySeconds: 30,
+		PeriodSeconds:       10,
 		TimeoutSeconds:      5,
+		SuccessThreshold:    1,
+		FailureThreshold:    3,
 	}
 	readinessProbe := &corev1.Probe{
 		Handler: corev1.Handler{
@@ -70,7 +73,8 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 			Name: "POD_IP",
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{
-					FieldPath: "status.podIP",
+					FieldPath:  "status.podIP",
+					APIVersion: "v1",
 				},
 			},
 		},
@@ -78,7 +82,8 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 			Name: "POD_NAME",
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{
-					FieldPath: "metadata.name",
+					FieldPath:  "metadata.name",
+					APIVersion: "v1",
 				},
 			},
 		},
@@ -86,7 +91,8 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 			Name: "POD_NAMESPACE",
 			ValueFrom: &corev1.EnvVarSource{
 				FieldRef: &corev1.ObjectFieldSelector{
-					FieldPath: "metadata.namespace",
+					FieldPath:  "metadata.namespace",
+					APIVersion: "v1",
 				},
 			},
 		},
@@ -119,13 +125,10 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 	sts := appsv1.StatefulSet{
 		ObjectMeta: metaData,
 		Spec: appsv1.StatefulSetSpec{
-			Replicas:            &replicas,
-			Selector:            selectors,
-			PodManagementPolicy: "OrderedReady",
-			ServiceName:         kafka.Name + "-headless",
-			UpdateStrategy: appsv1.StatefulSetUpdateStrategy{
-				Type: "OnDelete",
-			},
+			Replicas:             &replicas,
+			Selector:             selectors,
+			PodManagementPolicy:  "OrderedReady",
+			ServiceName:          kafka.Name + "-headless",
 			VolumeClaimTemplates: volumeClaimTemplate,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metaData,
@@ -142,6 +145,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 								{
 									Name:          kafka.Spec.ContainerPort.Name,
 									ContainerPort: kafka.Spec.ContainerPort.Port,
+									Protocol:      corev1.ProtocolTCP,
 								},
 							},
 							Env: envVars,
@@ -156,9 +160,12 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 									MountPath: "/opt/kafka/data",
 								},
 							},
+							TerminationMessagePath:   "/dev/termination-log",
+							TerminationMessagePolicy: corev1.TerminationMessageReadFile,
 						},
 					},
-					Affinity: kafka.Spec.Affinity,
+					Affinity:      kafka.Spec.Affinity,
+					RestartPolicy: corev1.RestartPolicyAlways,
 				},
 			},
 		},
