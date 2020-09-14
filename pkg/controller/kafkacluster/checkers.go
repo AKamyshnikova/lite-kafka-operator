@@ -3,6 +3,7 @@ package kafkacluster
 import (
 	"fmt"
 	"net"
+	"time"
 )
 
 // CheckZookeeperIsReady returns True if zookeeper is ready or False and error
@@ -10,7 +11,11 @@ func CheckZookeeperIsReady(zookeeperHost string, zookeeperPort int32) (bool, err
 
 	// connect to this socket
 	zooStr := fmt.Sprintf("%s:%d", zookeeperHost, zookeeperPort)
-	conn, err := net.Dial("tcp", zooStr)
+	dialer := net.Dialer{Timeout: time.Duration(time.Second * 2)}
+	conn, err := dialer.Dial("tcp", zooStr)
+	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
@@ -29,5 +34,19 @@ func CheckZookeeperIsReady(zookeeperHost string, zookeeperPort int32) (bool, err
 		return true, nil
 	}
 
+	return false, nil
+}
+
+func PollZookeeperCheck(zookeeperHost string, zookeeperPort int32) (bool, error) {
+	tries := 10
+	for i := 0; i < tries; i++ {
+		ok, err := CheckZookeeperIsReady(zookeeperHost, zookeeperPort)
+		if err != nil {
+			return false, err
+		}
+		if ok {
+			return true, nil
+		}
+	}
 	return false, nil
 }
