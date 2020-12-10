@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"sigs.k8s.io/yaml"
+
 	litekafkav1alpha1 "github.com/Svimba/lite-kafka-operator/pkg/apis/litekafka/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -120,6 +122,81 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 			Name:  "KAFKA_JMX_PORT",
 			Value: strconv.FormatUint(uint64(kafka.Spec.Options.JXMPort), 10),
 		},
+		{
+			Name:  "JMX_EXPORTER_PORT",
+			Value: strconv.FormatUint(uint64(kafka.Spec.Options.JXMExporterPort), 10),
+		},
+	}
+	kafkaContainer := corev1.Container{
+		Name:            "kafka-broker",
+		Image:           kafka.Spec.Image,
+		ImagePullPolicy: corev1.PullAlways,
+		LivenessProbe:   livenessProbe,
+		ReadinessProbe:  readinessProbe,
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          kafka.Spec.ContainerPort.Name,
+				ContainerPort: kafka.Spec.ContainerPort.Port,
+				Protocol:      corev1.ProtocolTCP,
+			},
+		},
+		Env: envVars,
+		Command: []string{
+			`sh`,
+			`-exc`,
+			`unset KAFKA_PORT && export KAFKA_BROKER_ID=${POD_NAME##*-} && export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:` + fmt.Sprintf("%d", kafka.Spec.ContainerPort.Port) + ` && exec /etc/confluent/docker/run`,
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "datadir",
+				MountPath: "/opt/kafka/data",
+			},
+		},
+		TerminationMessagePath:   "/dev/termination-log",
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+	}
+	exporterContainer := corev1.Container{
+		Name:            "jmx-exporter",
+		Image:           kafka.Spec.Options.JMXExporterImage,
+		ImagePullPolicy: corev1.PullAlways,
+		LivenessProbe:   &corev1.Probe{Handler: corev1.Handler{TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromString("metrics")}}},
+		ReadinessProbe:  &corev1.Probe{Handler: corev1.Handler{TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromString("metrics")}}},
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          "metrics",
+				ContainerPort: int32(kafka.Spec.Options.JXMExporterPort),
+				Protocol:      corev1.ProtocolTCP,
+			},
+		},
+		Env: envVars,
+		Command: []string{
+			`/bin/bash`, `-c`, `java -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=1 -XshowSettings:vm -jar jmx_prometheus_httpserver.jar ${JMX_EXPORTER_PORT} /etc/jmx/jmx-prometheus.yml`,
+		},
+		VolumeMounts: []corev1.VolumeMount{
+			{
+				Name:      "jmx-config",
+				MountPath: "/etc/jmx",
+			},
+		},
+		TerminationMessagePath:   "/dev/termination-log",
+		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+	}
+	podContainers := []corev1.Container{}
+	volumes := []corev1.Volume{}
+	podContainers = append(podContainers, kafkaContainer)
+	if len(kafka.Spec.Options.JMXExporterImage) > 0 {
+		podContainers = append(podContainers, exporterContainer)
+		volumes = append(volumes,
+			corev1.Volume{
+				Name: "jmx-config",
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: "tf-jmx-kafka-config",
+						},
+					},
+				},
+			})
 	}
 
 	sts := appsv1.StatefulSet{
@@ -134,38 +211,10 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 				ObjectMeta: metaData,
 				Spec: corev1.PodSpec{
 					TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
-					Containers: []corev1.Container{
-						{
-							Name:            "kafka-broker",
-							Image:           kafka.Spec.Image,
-							ImagePullPolicy: "IfNotPresent",
-							LivenessProbe:   livenessProbe,
-							ReadinessProbe:  readinessProbe,
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          kafka.Spec.ContainerPort.Name,
-									ContainerPort: kafka.Spec.ContainerPort.Port,
-									Protocol:      corev1.ProtocolTCP,
-								},
-							},
-							Env: envVars,
-							Command: []string{
-								`sh`,
-								`-exc`,
-								`unset KAFKA_PORT && export KAFKA_BROKER_ID=${POD_NAME##*-} && export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:` + fmt.Sprintf("%d", kafka.Spec.ContainerPort.Port) + ` && exec /etc/confluent/docker/run`,
-							},
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "datadir",
-									MountPath: "/opt/kafka/data",
-								},
-							},
-							TerminationMessagePath:   "/dev/termination-log",
-							TerminationMessagePolicy: corev1.TerminationMessageReadFile,
-						},
-					},
-					Affinity:      kafka.Spec.Affinity,
-					RestartPolicy: corev1.RestartPolicyAlways,
+					Containers:                    podContainers,
+					Volumes:                       volumes,
+					Affinity:                      kafka.Spec.Affinity,
+					RestartPolicy:                 corev1.RestartPolicyAlways,
 				},
 			},
 		},
@@ -226,4 +275,50 @@ func getKafkaService(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Service {
 	}
 
 	return &service
+}
+
+func getKafkaExporterService(kafka *litekafkav1alpha1.KafkaCluster) *corev1.Service {
+	metaData := metav1.ObjectMeta{
+		Namespace: kafka.Namespace,
+		Name:      kafka.Name + "-exporter",
+		Labels:    kafka.GetDefaultLabels(),
+		Annotations: map[string]string{
+			"prometheus.io/scrape": "true",
+		},
+	}
+
+	service := corev1.Service{
+		ObjectMeta: metaData,
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Name:       "http-metrics",
+					Port:       int32(kafka.Spec.Options.JXMExporterPort),
+					TargetPort: intstr.IntOrString{IntVal: int32(kafka.Spec.Options.JXMExporterPort)},
+				},
+			},
+			Selector: kafka.GetDefaultLabels(),
+		},
+	}
+
+	return &service
+}
+
+func getConfigMapJXMKafkaExporter(kafka *litekafkav1alpha1.KafkaCluster) *corev1.ConfigMap {
+	conf, err := yaml.Marshal(kafka.Spec.Options.JMXExporterRules)
+	if err != nil {
+		log.Error(err, "Cannot load Kafka JMX exporter config yaml")
+		conf = []byte("")
+	}
+	jmxConf := string(conf)
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tf-jmx-kafka-config",
+			Namespace: kafka.Namespace,
+		},
+		Data: map[string]string{
+			"jmx-prometheus.yml": jmxConf,
+		},
+	}
+	return cm
 }

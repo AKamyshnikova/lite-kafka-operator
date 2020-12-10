@@ -144,5 +144,11 @@ func (r *ReconcileKafkaCluster) Reconcile(request reconcile.Request) (reconcile.
 	if err != nil {
 		return reconcile.Result{Requeue: requeue}, err
 	}
+
+	requeue, err = r.handleConfigMap()
+	if err != nil {
+		return reconcile.Result{Requeue: requeue}, err
+	}
+
 	return reconcile.Result{}, nil
 }

@@ -150,6 +150,32 @@ func (r *ReconcileKafkaCluster) handleSVCsKafka() (bool, error) {
 	}
 	r.rlog.Info("Skip reconcile: Service already exists", "Namespace", found.Namespace, "Name", found.Name)
 
+	if len(r.kafka.Spec.Options.JMXExporterImage) > 0 {
+		// Define a new object
+		obj := getKafkaExporterService(r.kafka)
+		// Set KafkaCluster instance as the owner and controller
+		if err := controllerutil.SetControllerReference(r.kafka, obj, r.scheme); err != nil {
+			return false, err
+		}
+		// Check if this Service already exists
+		found := &corev1.Service{}
+		err = r.client.Get(context.TODO(), types.NamespacedName{Name: obj.Name, Namespace: obj.Namespace}, found)
+		if err != nil && errors.IsNotFound(err) {
+			r.rlog.Info("Creating a new Service", "Namespace", obj.Namespace, "Name", obj.Name)
+			err = r.client.Create(context.TODO(), obj)
+			if err != nil {
+				return false, err
+			}
+
+			// Pod created successfully - don't requeue
+			return false, nil
+		} else if err != nil {
+			return false, err
+		}
+		r.rlog.Info("Skip reconcile: Service already exists", "Namespace", found.Namespace, "Name", found.Name)
+
+	}
+
 	return false, nil
 }
 
@@ -174,6 +200,35 @@ func (r *ReconcileKafkaCluster) UpdateClusterStatus() (bool, error) {
 	err = r.client.Update(context.TODO(), r.kafka)
 	if err != nil {
 		return true, err
+	}
+
+	return false, nil
+}
+
+func (r *ReconcileKafkaCluster) handleConfigMap() (bool, error) {
+	cfg := getConfigMapJXMKafkaExporter(r.kafka)
+
+	foundCfg := &corev1.ConfigMap{}
+
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: cfg.Name, Namespace: cfg.Namespace}, foundCfg)
+	if err != nil && errors.IsNotFound(err) {
+		r.rlog.Info(fmt.Sprintf("Creating a new Config Map Name %s", cfg.Name))
+		err = r.client.Create(context.TODO(), cfg)
+		if err != nil {
+			return false, err
+		}
+	} else {
+		r.rlog.Info(fmt.Sprintf("Skip reconcile: ConfigMap already exists Name %s", foundCfg.Name))
+		if !reflect.DeepEqual(cfg.Data, foundCfg.Name) {
+			foundCfg.Data = cfg.Data
+			r.rlog.Info(fmt.Sprintf("Updating ConfigMap %s", foundCfg.Name))
+
+			err = r.client.Update(context.TODO(), foundCfg)
+			if err != nil {
+				r.rlog.Error(err, fmt.Sprintf("Cannot update ConfigMap %s", foundCfg.Name))
+				return false, err
+			}
+		}
 	}
 
 	return false, nil
