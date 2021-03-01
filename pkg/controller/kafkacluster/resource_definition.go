@@ -126,6 +126,24 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 			Name:  "JMX_EXPORTER_PORT",
 			Value: strconv.FormatUint(uint64(kafka.Spec.Options.JXMExporterPort), 10),
 		},
+		{
+			Name:  "KAFKA_NUM_PARTITIONS",
+			Value: "30",
+		},
+	}
+	var cmd []string
+	if kafka.Spec.Options.UseExternalAddress {
+		cmd = []string{
+			`sh`,
+			`-exc`,
+			`unset KAFKA_PORT && export KAFKA_BROKER_ID=${POD_NAME##*-} && export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_NAME}-external:` + fmt.Sprintf("%d", kafka.Spec.ContainerPort.Port) + ` && exec /etc/confluent/docker/run`,
+		}
+	} else {
+		cmd = []string{
+			`sh`,
+			`-exc`,
+			`unset KAFKA_PORT && export KAFKA_BROKER_ID=${POD_NAME##*-} && export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:` + fmt.Sprintf("%d", kafka.Spec.ContainerPort.Port) + ` && exec /etc/confluent/docker/run`,
+		}
 	}
 	kafkaContainer := corev1.Container{
 		Name:            "kafka-broker",
@@ -140,12 +158,8 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 				Protocol:      corev1.ProtocolTCP,
 			},
 		},
-		Env: envVars,
-		Command: []string{
-			`sh`,
-			`-exc`,
-			`unset KAFKA_PORT && export KAFKA_BROKER_ID=${POD_NAME##*-} && export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:` + fmt.Sprintf("%d", kafka.Spec.ContainerPort.Port) + ` && exec /etc/confluent/docker/run`,
-		},
+		Env:     envVars,
+		Command: cmd,
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      "datadir",

@@ -43,6 +43,7 @@ type KafkaOptions struct {
 	JXMExporterPort        uint               `json:"jxmExporterPort"`
 	JMXExporterImage       string             `json:"jmxExporterImage"`
 	JMXExporterRules       *JMXExporterConfig `json:"jmxExporterRules"`
+	UseExternalAddress     bool               `json:"use_external_address,omitempty"`
 }
 
 // KafkaClusterSpec defines the desired state of KafkaCluster
