@@ -38,11 +38,11 @@ type JMXExporterConfig struct {
 // KafkaOptions defines the desired state of KafkaOptions
 // +k8s:openapi-gen=true
 type KafkaOptions struct {
-	TopicReplicationFactor uint               `json:"topicReplicationFactor"`
-	JXMPort                uint               `json:"jxmPort"`
-	JXMExporterPort        uint               `json:"jxmExporterPort"`
-	JMXExporterImage       string             `json:"jmxExporterImage"`
-	JMXExporterRules       *JMXExporterConfig `json:"jmxExporterRules"`
+	TopicReplicationFactor uint               `json:"topicReplicationFactor,omitempty"`
+	JXMPort                uint               `json:"jxmPort,omitempty"`
+	JXMExporterPort        uint               `json:"jxmExporterPort,omitempty"`
+	JMXExporterImage       string             `json:"jmxExporterImage,omitempty"`
+	JMXExporterRules       *JMXExporterConfig `json:"jmxExporterRules,omitempty"`
 	UseExternalAddress     bool               `json:"use_external_address,omitempty"`
 }
 
@@ -53,7 +53,7 @@ type KafkaClusterSpec struct {
 	ContainerPort    *Port                        `json:"containerPort"`
 	ServicePort      *Port                        `json:"servicePort"`
 	Storage          string                       `json:"storage"`
-	Options          *KafkaOptions                `json:"options"`
+	Options          *KafkaOptions                `json:"options,omitempty"`
 	Zookeeper        *ZookeeperSpec               `json:"zookeeper"`
 	ZookeeperCheck   *bool                        `json:"zookeeperCheck"`
 	Image            string                       `json:"image"`
@@ -117,9 +117,6 @@ func (conf *JMXExporterConfig) setDefaultJMXConf() {
 	}
 	if conf.LowercaseOutputName == nil {
 		conf.LowercaseOutputName = &defaultTrue
-	}
-	if conf.Ssl == nil {
-		conf.Ssl = &defaultFalse
 	}
 	if len(conf.WhitelistObjectNames) == 0 {
 		conf.WhitelistObjectNames = []string{
