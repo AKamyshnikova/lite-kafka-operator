@@ -8,26 +8,68 @@ OPERATOR_IMAGE=$(REPOSITORY)/$(REPOSITORY_PATH)/$(NAME)
 PUSHLATEST?=false
 export GOPRIVATE=gerrit.mcp.mirantis.com/*
 
-# Some other useful make file for interacting with kubernetes
-include kube.mk
 
 get-version: ##Get next possible version (see hack/get_version.sh)
 	@echo ${VERSION}
 
-##@ Build
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
 
-.PHONY: build
-build: ## Build kafka-k8s-operator executable file in local go env
-	echo "Generate zzz-deepcopy objects"
-	operator-sdk version
-	operator-sdk generate k8s
-	echo "Build Kafka k8s Operator"
-	operator-sdk build $(OPERATOR_IMAGE):$(VERSION) --verbose
+all: manager
+
+# Run tests
+check: generate-k8s fmt vet crds test
+
+# Build manager binary
+manager: generate-k8s fmt vet
+	go build -o bin/manager main.go
+
+# Run against the configured Kubernetes cluster in ~/.kube/config
+run: generate-k8s fmt vet crds
+	go run ./main.go
+
+# Install CRDs into a cluster
+install: crds kustomize
+	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+
+# Uninstall CRDs from a cluster
+uninstall: crds kustomize
+	$(KUSTOMIZE) build config/crd | kubectl delete -f -
+
+# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
+deploy: crds kustomize
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${OPERATOR_IMAGE}:latest
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
+
+# generate crd e.g. CRD, RBAC etc.
+crds: controller-gen
+	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=config/crd/bases
+
+# Run go fmt against code
+fmt:
+	go fmt ./...
+
+# Run go vet against code
+vet:
+	go vet ./...
+
+# generate-k8s code
+generate-k8s: controller-gen
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+
+# Build the docker image
+build: check
+	docker build . -t $(OPERATOR_IMAGE):$(VERSION)
 ifeq ($(PUSHLATEST), "true")
 	docker tag $(OPERATOR_IMAGE):$(VERSION) $(OPERATOR_IMAGE):latest
 endif
 
-push: ## Push kafka-k8s-operator image prepared by $ make build to repository
+# Push the docker image
+push:
 	docker push $(OPERATOR_IMAGE):$(VERSION)
 ifeq ($(PUSHLATEST), "true")
 	docker push $(OPERATOR_IMAGE):latest
@@ -39,12 +81,8 @@ image-version: ## Prints image version where it will be pushed
 	@echo $(VERSION)
 
 clean: ## Clean up the build artifacts
-	@echo "Clean operator-sdk build"
-	rm -rf build/_output
 	@echo "Clean helm packages"
 	rm -rf $(HELM_PACKAGE_DIR)/*tgz
-
-##@ Code management
 
 tidy: check-git-config ## Update dependencies
 	go mod tidy -v
@@ -62,11 +100,6 @@ lint:
 fix:
 	golangci-lint run -v --fix ./...
 
-check: ## Run the default dev command which is the golangci-lint then execute the $ make generate-k8s
-	@echo Running the common required commands for developments purposes
-	- make lint
-	- make generate-k8s
-
 check-git-config: ## Check your git config
 	@if ! git --no-pager config --get-regexp 'url\..*\.insteadof' 'https://gerrit.mcp.mirantis.com/a/' 1>/dev/null; then \
 		echo "go get or go tidy may fail if you don't setup Git config."; \
@@ -79,24 +112,47 @@ update-git-config: ## Update your git config
 	@if ! git --no-pager config --get-regexp 'url\..*\.insteadof' 'https://gerrit.mcp.mirantis.com/a/' 1>/dev/null; then \
 		git config --global url."ssh://mcp-jenkins@gerrit.mcp.mirantis.com:29418/".insteadOf "https://gerrit.mcp.mirantis.com/a/"; \
 	fi
+# find or download controller-gen
+# download controller-gen if necessary
+controller-gen:
+ifeq (, $(shell which controller-gen))
+	@{ \
+	set -e ;\
+	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
+	cd $$CONTROLLER_GEN_TMP_DIR ;\
+	go mod init tmp ;\
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.2 ;\
+	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
+	}
+CONTROLLER_GEN=$(GOBIN)/controller-gen
+else
+CONTROLLER_GEN=$(shell which controller-gen)
+endif
 
-generate-k8s: ## Run the operator-sdk commands to generated code (k8s)
-	@echo Updating the deep copy files with the changes in the API
-	operator-sdk generate k8s
+kustomize:
+ifeq (, $(shell which kustomize))
+	@{ \
+	set -e ;\
+	KUSTOMIZE_GEN_TMP_DIR=$$(mktemp -d) ;\
+	cd $$KUSTOMIZE_GEN_TMP_DIR ;\
+	go mod init tmp ;\
+	go get sigs.k8s.io/kustomize/kustomize/v3@v3.5.4 ;\
+	rm -rf $$KUSTOMIZE_GEN_TMP_DIR ;\
+	}
+KUSTOMIZE=$(GOBIN)/kustomize
+else
+KUSTOMIZE=$(shell which kustomize)
+endif
 
-run: ## Run the development environment (in local go env) in the background using local ~/.kube/config
-	export OPERATOR_NAME=kafka-k8s-operator; \
-	operator-sdk up local
+# generate bundle crd and metadata, then validate generated files.
+bundle: crds
+	operator-sdk generate kustomize crd -q
+	kustomize build config/crd | operator-sdk generate bundle -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
+	operator-sdk bundle validate ./bundle
 
-.PHONY: help
-help: ## Display this help
-	@echo -e "Usage:\n  make \033[36m<target>\033[0m"
-	@awk 'BEGIN {FS = ":.*##"}; \
-		/^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } \
-		/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
-
-crds:
-	operator-sdk generate crds --crd-version v1
+# Build the bundle image.
+bundle-build:
+	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 export CGO_ENABLED=0
 
@@ -118,3 +174,10 @@ else ifeq ($(type),cover-func-no-zero)
 else
 	    go test ./...
 endif
+
+.PHONY: help
+help: ## Display this help
+	@echo -e "Usage:\n  make \033[36m<target>\033[0m"
+	@awk 'BEGIN {FS = ":.*##"}; \
+		/^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } \
+		/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
