@@ -13,8 +13,8 @@ require (
 )
 
 replace (
-	github.com/go-logr/zapr => github.com/go-logr/zapr v0.4.0
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.2+incompatible // Required by OLM
+	github.com/go-logr/zapr => github.com/go-logr/zapr v0.4.0
 	k8s.io/client-go => k8s.io/client-go v0.19.13 // Required by prometheus-operator
 )
 
