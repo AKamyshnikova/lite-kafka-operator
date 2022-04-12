@@ -638,6 +638,11 @@ spec:
                 type: string
               image:
                 type: string
+              imagePullPolicy:
+                default: Always
+                description: PullPolicy describes a policy for if/when to pull a container
+                  image
+                type: string
               options:
                 description: KafkaOptions defines the desired state of KafkaOptions
                 properties:

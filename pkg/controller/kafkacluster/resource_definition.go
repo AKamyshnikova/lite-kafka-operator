@@ -148,7 +148,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 	kafkaContainer := corev1.Container{
 		Name:            "kafka-broker",
 		Image:           kafka.Spec.Image,
-		ImagePullPolicy: corev1.PullAlways,
+		ImagePullPolicy: kafka.Spec.ImagePullPolicy,
 		LivenessProbe:   livenessProbe,
 		ReadinessProbe:  readinessProbe,
 		Ports: []corev1.ContainerPort{
@@ -172,7 +172,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 	exporterContainer := corev1.Container{
 		Name:            "jmx-exporter",
 		Image:           kafka.Spec.Options.JMXExporterImage,
-		ImagePullPolicy: corev1.PullAlways,
+		ImagePullPolicy: kafka.Spec.ImagePullPolicy,
 		LivenessProbe:   &corev1.Probe{Handler: corev1.Handler{TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromString("metrics")}}},
 		ReadinessProbe:  &corev1.Probe{Handler: corev1.Handler{TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromString("metrics")}}},
 		Ports: []corev1.ContainerPort{
