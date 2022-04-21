@@ -32,7 +32,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 				Command: []string{
 					"sh",
 					"-ec",
-					"/usr/bin/jps | /bin/grep -q SupportedKafka",
+					"/usr/bin/jps | /bin/grep -q Kafka",
 				},
 			},
 		},
@@ -145,6 +145,7 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 			`unset KAFKA_PORT && export KAFKA_BROKER_ID=${POD_NAME##*-} && export KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://${POD_IP}:` + fmt.Sprintf("%d", kafka.Spec.ContainerPort.Port) + ` && exec /etc/confluent/docker/run`,
 		}
 	}
+	runAsUser := int64(0)
 	kafkaContainer := corev1.Container{
 		Name:            "kafka-broker",
 		Image:           kafka.Spec.Image,
@@ -168,6 +169,9 @@ func getKafkaStatefulSet(kafka *litekafkav1alpha1.KafkaCluster) *appsv1.Stateful
 		},
 		TerminationMessagePath:   "/dev/termination-log",
 		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+		SecurityContext: &corev1.SecurityContext{
+			RunAsUser: &runAsUser,
+		},
 	}
 	exporterContainer := corev1.Container{
 		Name:            "jmx-exporter",
